@@ -1,32 +1,34 @@
-var debug = require("debug");
+"use strict";
+const debug = require("debug");
 
-var debugLog = debug("btcexp:core");
+const debugLog = debug("btcexp:core");
 
-var LRU = require("lru-cache");
-var fs = require('fs');
+const LRU = require("lru-cache");
+const fs = require('fs');
 
-var utils = require("../utils.js");
-var config = require("../config.js");
-var coins = require("../coins.js");
-var redisCache = require("../redisCache.js");
-var Decimal = require("decimal.js");
-var md5 = require("md5");
+const utils = require("../utils.js");
+const config = require("../config.js");
+const coins = require("../coins.js");
+const redisCache = require("../redisCache.js");
+const Decimal = require("decimal.js");
+const md5 = require("md5");
 
 // choose one of the below: RPC to a node, or mock data while testing
-var rpcApi = require("./rpcApi.js");
+const rpcApi = require("./rpcApi.js");
 //var rpcApi = require("./mockApi.js");
 
 
 // this value should be incremented whenever data format changes, to avoid
 // pulling old-format data from a persistent cache
-var cacheKeyVersion = "v1";
+const cacheKeyVersion = "v1";
 
 
 const ONE_SEC = 1000;
 const ONE_MIN = 60 * ONE_SEC;
 const ONE_HR = 60 * ONE_MIN;
+const FIFTEEN_MIN = 15 * ONE_MIN;
 const ONE_DAY = 24 * ONE_HR;
-const ONE_YR = 265 * ONE_DAY;
+const ONE_YR = 365 * ONE_DAY;
 
 
 
@@ -84,12 +86,13 @@ function createTieredCache(cacheObjs) {
 	}
 }
 
+const miscCaches = [];
+const blockCaches = [];
+const txCaches = [];
 
-
-
-var miscCaches = [];
-var blockCaches = [];
-var txCaches = [];
+global.miscLruCache = new LRU(2000);
+global.blockLruCache = new LRU(2000);
+global.txLruCache = new LRU(10000);
 
 if (!config.noInmemoryRpcCache) {
 	global.cacheStats.memory = {
@@ -103,9 +106,9 @@ if (!config.noInmemoryRpcCache) {
 		//debugLog(`cache.${cacheType}.${eventType}: ${cacheKey}`);
 	}
 
-	miscCaches.push(createMemoryLruCache(new LRU(2000), onMemoryCacheEvent));
-	blockCaches.push(createMemoryLruCache(new LRU(2000), onMemoryCacheEvent));
-	txCaches.push(createMemoryLruCache(new LRU(10000), onMemoryCacheEvent));
+	miscCaches.push(createMemoryLruCache(global.miscLruCache, onMemoryCacheEvent));
+	blockCaches.push(createMemoryLruCache(global.blockLruCache, onMemoryCacheEvent));
+	txCaches.push(createMemoryLruCache(global.txLruCache, onMemoryCacheEvent));
 }
 
 if (redisCache.active) {
@@ -122,7 +125,7 @@ if (redisCache.active) {
 	}
 
 	// md5 of the active RPC credentials serves as part of the key; this enables
-	// multiple instances of btc-rpc-explorer (eg mainnet + testnet) to share
+	// multiple instances of bchc-rpc-explorer (eg mainnet + testnet) to share
 	// a single redis instance peacefully
 	var rpcHostPort = `${config.credentials.rpc.host}:${config.credentials.rpc.port}`;
 	var rpcCredKeyComponent = md5(JSON.stringify(config.credentials.rpc)).substring(0, 8);
@@ -134,12 +137,9 @@ if (redisCache.active) {
 	txCaches.push(redisCacheObj);
 }
 
-var miscCache = createTieredCache(miscCaches);
-var blockCache = createTieredCache(blockCaches);
-var txCache = createTieredCache(txCaches);
-
-
-
+const miscCache = createTieredCache(miscCaches);
+const blockCache = createTieredCache(blockCaches);
+const txCache = createTieredCache(txCaches);
 
 function getGenesisBlockHash() {
 	return coins[config.coin].genesisBlockHashesByNetwork[global.activeBlockchain];
@@ -206,6 +206,10 @@ function shouldCacheTransaction(tx) {
 	if (tx.vin != null && tx.vin.length > 9) {
 		return false;
 	}
+	
+	if (tx.vout != null && tx.vout.length > 15) {
+		return false;
+	}
 
 	return true;
 }
@@ -237,36 +241,14 @@ function getMiningInfo() {
 	return tryCacheThenRpcApi(miscCache, "getMiningInfo", 30 * ONE_SEC, rpcApi.getMiningInfo);
 }
 
-function getUptimeSeconds() {
-	return tryCacheThenRpcApi(miscCache, "getUptimeSeconds", ONE_SEC, rpcApi.getUptimeSeconds);
-}
-
-function getChainTxStats(blockCount) {
-	return tryCacheThenRpcApi(miscCache, "getChainTxStats-" + blockCount, 20 * ONE_MIN, function() {
-		return rpcApi.getChainTxStats(blockCount);
-	});
-}
-
 function getNetworkHashrate(blockCount) {
-	return tryCacheThenRpcApi(miscCache, "getNetworkHashrate-" + blockCount, 20 * ONE_MIN, function() {
+	return tryCacheThenRpcApi(miscCache, "getNetworkHashrate-" + blockCount, FIFTEEN_MIN, function() {
 		return rpcApi.getNetworkHashrate(blockCount);
 	});
 }
 
-function getBlockStats(hash) {
-	return tryCacheThenRpcApi(miscCache, "getBlockStats-" + hash, ONE_YR, function() {
-		return rpcApi.getBlockStats(hash);
-	});
-}
-
-function getBlockStatsByHeight(height) {
-	return tryCacheThenRpcApi(miscCache, "getBlockStatsByHeight-" + height, ONE_YR, function() {
-		return rpcApi.getBlockStatsByHeight(height);
-	});
-}
-
 function getUtxoSetSummary() {
-	return tryCacheThenRpcApi(miscCache, "getUtxoSetSummary", 15 * ONE_MIN, rpcApi.getUtxoSetSummary);
+	return tryCacheThenRpcApi(miscCache, "getUtxoSetSummary", FIFTEEN_MIN, rpcApi.getUtxoSetSummary);
 }
 
 function getTxCountStats(dataPtCount, blockStart, blockEnd) {
@@ -305,64 +287,9 @@ function getTxCountStats(dataPtCount, blockStart, blockEnd) {
 				chainTxStatsIntervals.push(parseInt(Math.max(10, getblockchaininfo.blocks - blockStart - i * (blockEnd - blockStart) / (dataPoints - 1) - 1)));
 			}
 
-			var promises = [];
-			for (var i = 0; i < chainTxStatsIntervals.length; i++) {
-				promises.push(getChainTxStats(chainTxStatsIntervals[i]));
-			}
-
-			Promise.all(promises).then(function(results) {
-				if (results[0].name == "RpcError" && results[0].code == -8) {
-					// recently started node - no meaningful data to return
-					resolve(null);
-
-					return;
-				}
-
-				var txStats = {
-					txCounts: [],
-					txLabels: [],
-					txRates: []
-				};
-
-				for (var i = results.length - 1; i >= 0; i--) {
-					if (results[i].window_tx_count) {
-						txStats.txCounts.push( {x:(getblockchaininfo.blocks - results[i].window_block_count), y: (results[i].txcount - results[i].window_tx_count)} );
-						txStats.txRates.push( {x:(getblockchaininfo.blocks - results[i].window_block_count), y: (results[i].txrate)} );
-						txStats.txLabels.push(i);
-					}
-				}
-				
-				resolve({txCountStats:txStats, getblockchaininfo:getblockchaininfo, totalTxCount:results[0].txcount});
-
-			}).catch(function(err) {
-				reject(err);
-			});
-
 		}).catch(function(err) {
 			reject(err);
 		});
-	});
-}
-
-function getSmartFeeEstimates(mode, confTargetBlockCounts) {
-	return new Promise(function(resolve, reject) {
-		var promises = [];
-		for (var i = 0; i < confTargetBlockCounts.length; i++) {
-			promises.push(getSmartFeeEstimate(mode, confTargetBlockCounts[i]));
-		}
-
-		Promise.all(promises).then(function(results) {
-			resolve(results);
-
-		}).catch(function(err) {
-			reject(err);
-		});
-	});
-}
-
-function getSmartFeeEstimate(mode, confTargetBlockCount) {
-	return tryCacheThenRpcApi(miscCache, "getSmartFeeEstimate-" + mode + "-" + confTargetBlockCount, 5 * ONE_MIN, function() {
-		return rpcApi.getSmartFeeEstimate(mode, confTargetBlockCount);
 	});
 }
 
@@ -539,7 +466,7 @@ function getMempoolDetails(start, count) {
 }
 
 function getBlockByHeight(blockHeight) {
-	return tryCacheThenRpcApi(blockCache, "getBlockByHeight-" + blockHeight, ONE_HR, function() {
+	return tryCacheThenRpcApi(blockCache, "getBlockByHeight-" + blockHeight, FIFTEEN_MIN, function() {
 		return rpcApi.getBlockByHeight(blockHeight);
 	});
 }
@@ -561,7 +488,7 @@ function getBlocksByHeight(blockHeights) {
 }
 
 function getBlockHeaderByHeight(blockHeight) {
-	return tryCacheThenRpcApi(blockCache, "getBlockHeaderByHeight-" + blockHeight, ONE_HR, function() {
+	return tryCacheThenRpcApi(blockCache, "getBlockHeaderByHeight-" + blockHeight, FIFTEEN_MIN, function() {
 		return rpcApi.getBlockHeaderByHeight(blockHeight);
 	});
 }
@@ -582,24 +509,8 @@ function getBlockHeadersByHeight(blockHeights) {
 	});
 }
 
-function getBlocksStatsByHeight(blockHeights) {
-	return new Promise(function(resolve, reject) {
-		var promises = [];
-		for (var i = 0; i < blockHeights.length; i++) {
-			promises.push(getBlockStatsByHeight(blockHeights[i]));
-		}
-
-		Promise.all(promises).then(function(results) {
-			resolve(results);
-
-		}).catch(function(err) {
-			reject(err);
-		});
-	});
-}
-
 function getBlockByHash(blockHash) {
-	return tryCacheThenRpcApi(blockCache, "getBlockByHash-" + blockHash, ONE_HR, function() {
+	return tryCacheThenRpcApi(blockCache, "getBlockByHash-" + blockHash, FIFTEEN_MIN, function() {
 		return rpcApi.getBlockByHash(blockHash);
 	});
 }
@@ -631,7 +542,7 @@ function getRawTransaction(txid) {
 		return rpcApi.getRawTransaction(txid);
 	};
 
-	return tryCacheThenRpcApi(txCache, "getRawTransaction-" + txid, ONE_HR, rpcApiFunction, shouldCacheTransaction);
+	return tryCacheThenRpcApi(txCache, "getRawTransaction-" + txid, FIFTEEN_MIN, rpcApiFunction, shouldCacheTransaction);
 }
 
 /*
@@ -667,7 +578,7 @@ function getSummarizedTransactionOutput(txid, voutIndex) {
 		});
 	};
 
-	return tryCacheThenRpcApi(txCache, `txoSummary-${txid}-${voutIndex}`, ONE_HR, rpcApiFunction, function() { return true; });
+	return tryCacheThenRpcApi(txCache, `txoSummary-${txid}-${voutIndex}`, FIFTEEN_MIN, rpcApiFunction, function() { return true; });
 }
 
 function getTxUtxos(tx) {
@@ -689,7 +600,7 @@ function getTxUtxos(tx) {
 
 function getUtxo(txid, outputIndex) {
 	return new Promise(function(resolve, reject) {
-		tryCacheThenRpcApi(miscCache, "utxo-" + txid + "-" + outputIndex, ONE_HR, function() {
+		tryCacheThenRpcApi(miscCache, "utxo-" + txid + "-" + outputIndex, FIFTEEN_MIN, function() {
 			return rpcApi.getUtxo(txid, outputIndex);
 
 		}).then(function(result) {
@@ -709,13 +620,13 @@ function getUtxo(txid, outputIndex) {
 }
 
 function getMempoolTxDetails(txid, includeAncDec) {
-	return tryCacheThenRpcApi(miscCache, "mempoolTxDetails-" + txid + "-" + includeAncDec, ONE_HR, function() {
+	return tryCacheThenRpcApi(miscCache, "mempoolTxDetails-" + txid + "-" + includeAncDec, FIFTEEN_MIN, function() {
 		return rpcApi.getMempoolTxDetails(txid, includeAncDec);
 	});
 }
 
 function getAddress(address) {
-	return tryCacheThenRpcApi(miscCache, "getAddress-" + address, ONE_HR, function() {
+	return tryCacheThenRpcApi(miscCache, "getAddress-" + address, FIFTEEN_MIN, function() {
 		return rpcApi.getAddress(address);
 	});
 }
@@ -1066,22 +977,15 @@ module.exports = {
 	getRawTransactionsWithInputs: getRawTransactionsWithInputs,
 	getTxUtxos: getTxUtxos,
 	getMempoolTxDetails: getMempoolTxDetails,
-	getUptimeSeconds: getUptimeSeconds,
 	getHelp: getHelp,
 	getRpcMethodHelp: getRpcMethodHelp,
 	getAddress: getAddress,
 	logCacheSizes: logCacheSizes,
 	getPeerSummary: getPeerSummary,
-	getChainTxStats: getChainTxStats,
 	getMempoolDetails: getMempoolDetails,
 	getTxCountStats: getTxCountStats,
-	getSmartFeeEstimates: getSmartFeeEstimates,
-	getSmartFeeEstimate: getSmartFeeEstimate,
 	getUtxoSetSummary: getUtxoSetSummary,
 	getNetworkHashrate: getNetworkHashrate,
-	getBlockStats: getBlockStats,
-	getBlockStatsByHeight: getBlockStatsByHeight,
-	getBlocksStatsByHeight: getBlocksStatsByHeight,
 	buildBlockAnalysisData: buildBlockAnalysisData,
 	getBlockHeaderByHeight: getBlockHeaderByHeight,
 	getBlockHeadersByHeight: getBlockHeadersByHeight

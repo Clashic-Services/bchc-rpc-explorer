@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
-'use strict';
+"use strict";
 
-var os = require('os');
-var path = require('path');
-var dotenv = require("dotenv");
-var fs = require('fs');
+const os = require('os');
+const path = require('path');
+const dotenv = require("dotenv");
+const fs = require('fs');
 
-var configPaths = [ path.join(os.homedir(), '.config', 'btc-rpc-explorer.env'), path.join(process.cwd(), '.env') ];
+const configPaths = [ path.join(os.homedir(), '.config', 'bchc-rpc-explorer.env'), path.join(process.cwd(), '.env') ];
 configPaths.filter(fs.existsSync).forEach(path => {
 	console.log('Loading env file:', path);
 	dotenv.config({ path });
@@ -17,49 +17,68 @@ global.cacheStats = {};
 
 // debug module is already loaded by the time we do dotenv.config
 // so refresh the status of DEBUG env var
-var debug = require("debug");
+const debug = require("debug");
 debug.enable(process.env.DEBUG || "btcexp:app,btcexp:error");
 
-var debugLog = debug("btcexp:app");
-var debugErrorLog = debug("btcexp:error");
-var debugPerfLog = debug("btcexp:actionPerformace");
+const debugLog = debug("btcexp:app");
+const debugErrorLog = debug("btcexp:error");
+const debugPerfLog = debug("btcexp:actionPerformace");
 
-var express = require('express');
-var favicon = require('serve-favicon');
-var logger = require('morgan');
-var cookieParser = require('cookie-parser');
-var bodyParser = require('body-parser');
-var session = require("express-session");
-var csurf = require("csurf");
-var config = require("./app/config.js");
-var simpleGit = require('simple-git');
-var utils = require("./app/utils.js");
-var moment = require("moment");
-var Decimal = require('decimal.js');
-var bitcoinCore = require("bitcoin-core");
-var pug = require("pug");
-var momentDurationFormat = require("moment-duration-format");
-var coreApi = require("./app/api/coreApi.js");
-var coins = require("./app/coins.js");
-var request = require("request");
-var qrcode = require("qrcode");
-var addressApi = require("./app/api/addressApi.js");
-var electrumAddressApi = require("./app/api/electrumAddressApi.js");
-var coreApi = require("./app/api/coreApi.js");
-var auth = require('./app/auth.js');
-var sso = require('./app/sso.js');
-var markdown = require("markdown-it")();
+const express = require('express');
+const favicon = require('serve-favicon');
+const logger = require('morgan');
+const cookieParser = require('cookie-parser');
+const bodyParser = require('body-parser');
+const session = require("express-session");
+const csurf = require("csurf");
+const config = require("./app/config.js");
+const simpleGit = require('simple-git');
+const utils = require("./app/utils.js");
+const moment = require("moment");
+const Decimal = require('decimal.js');
+const bitcoinCore = require("bitcoin-core");
+const pug = require("pug");
+const momentDurationFormat = require("moment-duration-format");
+const coreApi = require("./app/api/coreApi.js");
+const coins = require("./app/coins.js");
+const request = require("request");
+const qrcode = require("qrcode");
+const addressApi = require("./app/api/addressApi.js");
+const electrumAddressApi = require("./app/api/electrumAddressApi.js");
+const auth = require('./app/auth.js');
+const sso = require('./app/sso.js');
+const markdown = require("markdown-it")();
+const v8 = require("v8");
 
-var package_json = require('./package.json');
+const package_json = require('./package.json');
 global.appVersion = package_json.version;
 
-var crawlerBotUserAgentStrings = [ "Googlebot", "Bingbot", "Slurp", "DuckDuckBot", "Baiduspider", "YandexBot", "Sogou", "Exabot", "facebot", "ia_archiver" ];
+const crawlerBotUserAgentStrings = [ "Googlebot", "Bingbot", "Slurp", "DuckDuckBot", "Baiduspider", "YandexBot", "Sogou", "Exabot", "facebot", "ia_archiver" ];
 
-var baseActionsRouter = require('./routes/baseRouter.js');
-var apiActionsRouter = require('./routes/apiRouter.js');
-var snippetActionsRouter = require('./routes/snippetRouter.js');
+const baseActionsRouter = require('./routes/baseRouter.js');
+const apiActionsRouter = require('./routes/apiRouter.js');
+const snippetActionsRouter = require('./routes/snippetRouter.js');
+const adminActionsRouter = require('./routes/adminRouter.js');
 
-var app = express();
+const app = express();
+
+app.use(require("express-status-monitor")({
+	path: config.baseUrl + 'admin/status',
+	spans: [
+		{
+			interval: 1,            // Every second
+			retention: 60           // Keep 60 datapoints in memory
+		},
+		{
+			interval: 30,            // Every 30 seconds
+			retention: 60
+		},
+		{
+			interval: 60,           // Every 60 seconds
+			retention: 24 * 60
+		}
+	]
+}));
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -134,7 +153,7 @@ function loadMiningPoolConfigs() {
 
 function getSourcecodeProjectMetadata() {
 	var options = {
-		url: "https://api.github.com/repos/janoside/btc-rpc-explorer",
+		url: "https://api.github.com/repos/Clashic-Services/bchc-rpc-explorer",
 		headers: {
 			'User-Agent': 'request'
 		}
@@ -213,7 +232,7 @@ function onRpcConnectionVerified(getnetworkinfo, getblockchaininfo) {
 
 	global.getnetworkinfo = getnetworkinfo;
 
-	var bitcoinCoreVersionRegex = /^.*\/Satoshi\:(.*)\/.*$/;
+	var bitcoinCoreVersionRegex = /^.*\/Bitcoin Clashic\:(.*)\/.*$/;
 
 	var match = bitcoinCoreVersionRegex.exec(getnetworkinfo.subversion);
 	if (match) {
@@ -272,10 +291,6 @@ function onRpcConnectionVerified(getnetworkinfo, getblockchaininfo) {
 	refreshUtxoSetSummary();
 	setInterval(refreshUtxoSetSummary, 30 * 60 * 1000);
 
-
-	// 1d / 7d volume
-	refreshNetworkVolumes();
-	setInterval(refreshNetworkVolumes, 30 * 60 * 1000);
 }
 
 function refreshUtxoSetSummary() {
@@ -300,80 +315,6 @@ function refreshUtxoSetSummary() {
 	});
 }
 
-function refreshNetworkVolumes() {
-	if (config.slowDeviceMode) {
-		debugLog("Skipping performance-intensive task: fetch last 24 hrs of blockstats to calculate transaction volume. This is skipped due to the flag 'slowDeviceMode' which defaults to 'true' to protect slow nodes. Set this flag to 'false' to enjoy UTXO set summary details.");
-
-		return;
-	}
-
-	var cutoff1d = new Date().getTime() - (60 * 60 * 24 * 1000);
-	var cutoff7d = new Date().getTime() - (60 * 60 * 24 * 7 * 1000);
-
-	coreApi.getBlockchainInfo().then(function(result) {
-		var promises = [];
-
-		var blocksPerDay = 144 + 20; // 20 block padding
-
-		for (var i = 0; i < (blocksPerDay * 1); i++) {
-			if (result.blocks - i >= 0) {
-				promises.push(coreApi.getBlockStatsByHeight(result.blocks - i));
-			}
-		}
-
-		var startBlock = result.blocks;
-
-		var endBlock1d = result.blocks;
-		var endBlock7d = result.blocks;
-
-		var endBlockTime1d = 0;
-		var endBlockTime7d = 0;
-
-		Promise.all(promises).then(function(results) {
-			var volume1d = new Decimal(0);
-			var volume7d = new Decimal(0);
-
-			var blocks1d = 0;
-			var blocks7d = 0;
-
-			if (results && results.length > 0 && results[0] != null) {
-				for (var i = 0; i < results.length; i++) {
-					if (results[i].time * 1000 > cutoff1d) {
-						volume1d = volume1d.plus(new Decimal(results[i].total_out));
-						volume1d = volume1d.plus(new Decimal(results[i].subsidy));
-						volume1d = volume1d.plus(new Decimal(results[i].totalfee));
-						blocks1d++;
-
-						endBlock1d = results[i].height;
-						endBlockTime1d = results[i].time;
-					}
-
-					if (results[i].time * 1000 > cutoff7d) {
-						volume7d = volume7d.plus(new Decimal(results[i].total_out));
-						volume7d = volume7d.plus(new Decimal(results[i].subsidy));
-						volume7d = volume7d.plus(new Decimal(results[i].totalfee));
-						blocks7d++;
-
-						endBlock7d = results[i].height;
-						endBlockTime7d = results[i].time;
-					}
-				}
-
-				volume1d = volume1d.dividedBy(coinConfig.baseCurrencyUnit.multiplier);
-				volume7d = volume7d.dividedBy(coinConfig.baseCurrencyUnit.multiplier);
-
-				global.networkVolume = {d1:{amt:volume1d, blocks:blocks1d, startBlock:startBlock, endBlock:endBlock1d, startTime:results[0].time, endTime:endBlockTime1d}};
-
-				debugLog(`Network volume: ${JSON.stringify(global.networkVolume)}`);
-
-			} else {
-				debugLog("Unable to load network volume, likely due to bitcoind version older than 0.17.0 (the first version to support getblockstats).");
-			}
-		});
-	});
-}
-
-
 app.onStartup = function() {
 	global.appStartTime = new Date().getTime();
 	
@@ -386,6 +327,29 @@ app.onStartup = function() {
 	global.specialAddresses = {};
 
 	loadChangelog();
+
+	global.nodeVersion = process.version;
+	debugLog(`Environment - Node: ${process.version}, Platform: ${process.platform}, Versions: ${JSON.stringify(process.versions)}`);
+
+
+	// dump "startup" heap after 5sec
+	if (false) {
+		(function () {
+			var callback = function() {
+				debugLog("Waited 5 sec after startup, now dumping 'startup' heap...");
+
+				const filename = `./heapDumpAtStartup-${Date.now()}.heapsnapshot`;
+				const heapdumpStream = v8.getHeapSnapshot();
+				const fileStream = fs.createWriteStream(filename);
+				heapdumpStream.pipe(fileStream);
+
+				debugLog("Heap dump at startup written to", filename);
+			};
+
+			setTimeout(callback, 5000);
+		})();
+	}
+	
 
 	if (global.sourcecodeVersion == null && fs.existsSync('.git')) {
 		simpleGit(".").log(["-n 1"], function(err, log) {
@@ -610,6 +574,7 @@ app.use(csurf(), (req, res, next) => {
 app.use(config.baseUrl, baseActionsRouter);
 app.use(config.baseUrl + 'api/', apiActionsRouter);
 app.use(config.baseUrl + 'snippet/', snippetActionsRouter);
+app.use(config.baseUrl + 'admin/', adminActionsRouter);
 
 app.use(function(req, res, next) {
 	var time = Date.now() - req.startTime;

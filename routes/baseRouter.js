@@ -1,28 +1,27 @@
-var debug = require("debug");
-var debugLog = debug("btcexp:router");
+"use strict";
+const debug = require("debug");
+const debugLog = debug("btcexp:router");
 
-var express = require('express');
-var csurf = require('csurf');
-var router = express.Router();
-var util = require('util');
-var moment = require('moment');
-var bitcoinCore = require("bitcoin-core");
-var qrcode = require('qrcode');
-var bitcoinjs = require('bitcoinjs-lib');
-var sha256 = require("crypto-js/sha256");
-var hexEnc = require("crypto-js/enc-hex");
-var Decimal = require("decimal.js");
-var semver = require("semver");
-var markdown = require("markdown-it")();
+const express = require('express');
+const csurf = require('csurf');
+const router = express.Router();
+const util = require('util');
+const moment = require('moment');
+const bitcoinCore = require("bitcoin-core");
+const qrcode = require('qrcode');
+const bitcoinjs = require('bitcoinjs-lib');
+const sha256 = require("crypto-js/sha256");
+const hexEnc = require("crypto-js/enc-hex");
+const Decimal = require("decimal.js");
+const semver = require("semver");
+const markdown = require("markdown-it")();
 
-var utils = require('./../app/utils.js');
-var coins = require("./../app/coins.js");
-var config = require("./../app/config.js");
-var coreApi = require("./../app/api/coreApi.js");
-var addressApi = require("./../app/api/addressApi.js");
-var rpcApi = require("./../app/api/rpcApi.js");
-
-const v8 = require('v8');
+const utils = require('./../app/utils.js');
+const coins = require("./../app/coins.js");
+const config = require("./../app/config.js");
+const coreApi = require("./../app/api/coreApi.js");
+const addressApi = require("./../app/api/addressApi.js");
+const rpcApi = require("./../app/api/rpcApi.js");
 
 const forceCsrf = csurf({ ignoreMethods: [] });
 
@@ -69,9 +68,6 @@ router.get("/", function(req, res, next) {
 	promises.push(coreApi.getMiningInfo());
 
 	// promiseResults[2]
-	promises.push(coreApi.getSmartFeeEstimates("CONSERVATIVE", feeConfTargets));
-
-	// promiseResults[3] and [4]
 	promises.push(coreApi.getNetworkHashrate(144));
 	promises.push(coreApi.getNetworkHashrate(1008));
 
@@ -94,10 +90,6 @@ router.get("/", function(req, res, next) {
 			blockHeights.push(0);
 		}
 
-		// promiseResults[5]
-		promises.push(coreApi.getBlocksStatsByHeight(blockHeights));
-
-		// promiseResults[6]
 		promises.push(new Promise(function(resolve, reject) {
 			coreApi.getBlockHeaderByHeight(coinConfig.difficultyAdjustmentBlockCount * res.locals.difficultyPeriod).then(function(difficultyPeriodFirstBlockHeader) {
 				resolve(difficultyPeriodFirstBlockHeader);
@@ -107,24 +99,12 @@ router.get("/", function(req, res, next) {
 		if (getblockchaininfo.chain !== 'regtest') {
 			var targetBlocksPerDay = 24 * 60 * 60 / global.coinConfig.targetBlockTimeSeconds;
 
-			// promiseResults[7] (if not regtest)
-			promises.push(coreApi.getTxCountStats(targetBlocksPerDay / 4, -targetBlocksPerDay, "latest"));
-
 			var chainTxStatsIntervals = [ targetBlocksPerDay, targetBlocksPerDay * 7, targetBlocksPerDay * 30, targetBlocksPerDay * 365 ]
 				.filter(numBlocks => numBlocks <= getblockchaininfo.blocks);
 
 			res.locals.chainTxStatsLabels = [ "24 hours", "1 week", "1 month", "1 year" ]
 				.slice(0, chainTxStatsIntervals.length)
 				.concat("All time");
-
-			// promiseResults[8-X] (if not regtest)
-			for (var i = 0; i < chainTxStatsIntervals.length; i++) {
-				promises.push(coreApi.getChainTxStats(chainTxStatsIntervals[i]));
-			}
-		}
-
-		if (getblockchaininfo.chain !== 'regtest') {
-			promises.push(coreApi.getChainTxStats(getblockchaininfo.blocks - 1));
 		}
 
 		coreApi.getBlocksByHeight(blockHeights).then(function(latestBlocks) {
@@ -135,22 +115,22 @@ router.get("/", function(req, res, next) {
 				res.locals.mempoolInfo = promiseResults[0];
 				res.locals.miningInfo = promiseResults[1];
 
-				var rawSmartFeeEstimates = promiseResults[2];
-
-				var smartFeeEstimates = {};
-
-				for (var i = 0; i < feeConfTargets.length; i++) {
-					var rawSmartFeeEstimate = rawSmartFeeEstimates[i];
-
-					if (rawSmartFeeEstimate.errors) {
-						smartFeeEstimates[feeConfTargets[i]] = "?";
-
-					} else {
-						smartFeeEstimates[feeConfTargets[i]] = parseInt(new Decimal(rawSmartFeeEstimate.feerate).times(coinConfig.baseCurrencyUnit.multiplier).dividedBy(1000));
-					}
-				}
-
-				res.locals.smartFeeEstimates = smartFeeEstimates;
+//				var rawSmartFeeEstimates = promiseResults[2];
+//
+//				var smartFeeEstimates = {};
+//
+//				for (var i = 0; i < feeConfTargets.length; i++) {
+//					var rawSmartFeeEstimate = rawSmartFeeEstimates[i];
+//
+//					if (rawSmartFeeEstimate.errors) {
+//						smartFeeEstimates[feeConfTargets[i]] = "?";
+//
+//					} else {
+//						smartFeeEstimates[feeConfTargets[i]] = parseInt(new Decimal(rawSmartFeeEstimate.feerate).times(coinConfig.baseCurrencyUnit.multiplier).dividedBy(1000));
+//					}
+//				}
+//
+//				res.locals.smartFeeEstimates = smartFeeEstimates;
 
 
 				res.locals.hashrate1d = promiseResults[3];
@@ -170,18 +150,6 @@ router.get("/", function(req, res, next) {
 
 				res.locals.difficultyPeriodFirstBlockHeader = promiseResults[6];
 				
-
-				if (getblockchaininfo.chain !== 'regtest') {
-					res.locals.txStats = promiseResults[7];
-
-					var chainTxStats = [];
-					for (var i = 0; i < res.locals.chainTxStatsLabels.length; i++) {
-						chainTxStats.push(promiseResults[i + 8]);
-					}
-
-					res.locals.chainTxStats = chainTxStats;
-				}
-
 				res.render("index");
 
 				next();
@@ -212,25 +180,15 @@ router.get("/node-status", function(req, res, next) {
 		coreApi.getNetworkInfo().then(function(getnetworkinfo) {
 			res.locals.getnetworkinfo = getnetworkinfo;
 
-			coreApi.getUptimeSeconds().then(function(uptimeSeconds) {
-				res.locals.uptimeSeconds = uptimeSeconds;
+			coreApi.getNetTotals().then(function(getnettotals) {
+				res.locals.getnettotals = getnettotals;
 
-				coreApi.getNetTotals().then(function(getnettotals) {
-					res.locals.getnettotals = getnettotals;
+				res.render("node-status");
 
-					res.render("node-status");
+				next();
 
-					next();
-
-				}).catch(function(err) {
-					res.locals.userMessage = "Error getting node status: (id=0), err=" + err;
-
-					res.render("node-status");
-
-					next();
-				});
 			}).catch(function(err) {
-				res.locals.userMessage = "Error getting node status: (id=1), err=" + err;
+				res.locals.userMessage = "Error getting node status: (id=0), err=" + err;
 
 				res.render("node-status");
 
@@ -435,8 +393,6 @@ router.get("/blocks", function(req, res, next) {
 
 		promises.push(coreApi.getBlocksByHeight(blockHeights));
 
-		promises.push(coreApi.getBlocksStatsByHeight(blockHeights));
-
 		Promise.all(promises).then(function(promiseResults) {
 			res.locals.blocks = promiseResults[0];
 			var rawblockstats = promiseResults[1];
@@ -484,27 +440,6 @@ router.get("/mining-summary", function(req, res, next) {
 		res.locals.userMessage = "Error: " + err;
 
 		res.render("mining-summary");
-
-		next();
-	});
-});
-
-router.get("/block-stats", function(req, res, next) {
-	if (semver.lt(global.btcNodeSemver, rpcApi.minRpcVersions.getblockstats)) {
-		res.locals.rpcApiUnsupportedError = {rpc:"getblockstats", version:rpcApi.minRpcVersions.getblockstats};
-	}
-
-	coreApi.getBlockchainInfo().then(function(getblockchaininfo) {
-		res.locals.currentBlockHeight = getblockchaininfo.blocks;
-
-		res.render("block-stats");
-
-		next();
-
-	}).catch(function(err) {
-		res.locals.userMessage = "Error: " + err;
-
-		res.render("block-stats");
 
 		next();
 	});
@@ -658,19 +593,6 @@ router.get("/block-height/:blockHeight", function(req, res, next) {
 			});
 		}));
 
-		promises.push(new Promise(function(resolve, reject) {
-			coreApi.getBlockStats(result.hash).then(function(result) {
-				res.locals.result.blockstats = result;
-
-				resolve();
-
-			}).catch(function(err) {
-				res.locals.pageErrors.push(utils.logError("983yr435r76d", err));
-
-				reject(err);
-			});
-		}));
-
 		Promise.all(promises).then(function() {
 			res.render("block");
 
@@ -735,19 +657,6 @@ router.get("/block/:blockHash", function(req, res, next) {
 
 		}).catch(function(err) {
 			res.locals.pageErrors.push(utils.logError("238h38sse", err));
-			
-			reject(err);
-		});
-	}));
-
-	promises.push(new Promise(function(resolve, reject) {
-		coreApi.getBlockStats(blockHash).then(function(result) {
-			res.locals.result.blockstats = result;
-
-			resolve();
-
-		}).catch(function(err) {
-			res.locals.pageErrors.push(utils.logError("21983ue8hye", err));
 			
 			reject(err);
 		});
@@ -1528,30 +1437,6 @@ router.get("/about", function(req, res, next) {
 
 router.get("/tools", function(req, res, next) {
 	res.render("tools");
-
-	next();
-});
-
-router.get("/admin", function(req, res, next) {
-	res.locals.appStartTime = global.appStartTime;
-	res.locals.memstats = v8.getHeapStatistics();
-	res.locals.rpcStats = global.rpcStats;
-	res.locals.electrumStats = global.electrumStats;
-	res.locals.cacheStats = global.cacheStats;
-	res.locals.errorStats = global.errorStats;
-
-	res.locals.appConfig = {
-		privacyMode: config.privacyMode,
-		slowDeviceMode: config.slowDeviceMode,
-		demoSite: config.demoSite,
-		rpcConcurrency: config.rpcConcurrency,
-		addressApi: config.addressApi,
-		ipStackComApiAccessKey: !!config.credentials.ipStackComApiAccessKey,
-		redisCache: !!config.redisUrl,
-		noInmemoryRpcCache: config.noInmemoryRpcCache
-	};
-
-	res.render("admin");
 
 	next();
 });

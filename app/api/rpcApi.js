@@ -1,17 +1,18 @@
-var debug = require('debug');
+"use strict";
+const debug = require('debug');
 
-var debugLog = debug("btcexp:rpc");
+const debugLog = debug("btcexp:rpc");
 
-var async = require("async");
-var semver = require("semver");
+const async = require("async");
+const semver = require("semver");
 
-var utils = require("../utils.js");
-var config = require("../config.js");
-var coins = require("../coins.js");
+const utils = require("../utils.js");
+const config = require("../config.js");
+const coins = require("../coins.js");
 
-var activeQueueTasks = 0;
+let activeQueueTasks = 0;
 
-var rpcQueue = async.queue(function(task, callback) {
+const rpcQueue = async.queue(function(task, callback) {
 	activeQueueTasks++;
 	//debugLog("activeQueueTasks: " + activeQueueTasks);
 
@@ -23,8 +24,6 @@ var rpcQueue = async.queue(function(task, callback) {
 	});
 
 }, config.rpcConcurrency);
-
-var minRpcVersions = {getblockstats:"0.17.0"};
 
 global.rpcStats = {};
 
@@ -50,10 +49,6 @@ function getMiningInfo() {
 	return getRpcData("getmininginfo");
 }
 
-function getUptimeSeconds() {
-	return getRpcData("uptime");
-}
-
 function getPeerInfo() {
 	return getRpcData("getpeerinfo");
 }
@@ -62,44 +57,8 @@ function getMempoolTxids() {
 	return getRpcDataWithParams({method:"getrawmempool", parameters:[false]});
 }
 
-function getSmartFeeEstimate(mode="CONSERVATIVE", confTargetBlockCount) {
-	return getRpcDataWithParams({method:"estimatesmartfee", parameters:[confTargetBlockCount, mode]});
-}
-
 function getNetworkHashrate(blockCount=144) {
 	return getRpcDataWithParams({method:"getnetworkhashps", parameters:[blockCount]});
-}
-
-function getBlockStats(hash) {
-	if (semver.gte(global.btcNodeSemver, minRpcVersions.getblockstats)) {
-		if (hash == coinConfig.genesisBlockHashesByNetwork[global.activeBlockchain] && coinConfig.genesisBlockStatsByNetwork[global.activeBlockchain]) {
-			return new Promise(function(resolve, reject) {
-				resolve(coinConfig.genesisBlockStatsByNetwork[global.activeBlockchain]);
-			});
-
-		} else {
-			return getRpcDataWithParams({method:"getblockstats", parameters:[hash]});
-		}
-	} else {
-		// unsupported
-		return unsupportedPromise(minRpcVersions.getblockstats);
-	}
-}
-
-function getBlockStatsByHeight(height) {
-	if (semver.gte(global.btcNodeSemver, minRpcVersions.getblockstats)) {
-		if (height == 0 && coinConfig.genesisBlockStatsByNetwork[global.activeBlockchain]) {
-			return new Promise(function(resolve, reject) {
-				resolve(coinConfig.genesisBlockStatsByNetwork[global.activeBlockchain]);
-			});
-			
-		} else {
-			return getRpcDataWithParams({method:"getblockstats", parameters:[height]});
-		}
-	} else {
-		// unsupported
-		return unsupportedPromise(minRpcVersions.getblockstats);
-	}
 }
 
 function getUtxoSetSummary() {
@@ -149,10 +108,6 @@ function getRawMempoolEntry(txid) {
 			resolve(null);
 		});
 	});
-}
-
-function getChainTxStats(blockCount) {
-	return getRpcDataWithParams({method:"getchaintxstats", parameters:[blockCount]});
 }
 
 function getBlockByHeight(blockHeight) {
@@ -347,7 +302,7 @@ function getRpcData(cmd) {
 	return new Promise(function(resolve, reject) {
 		debugLog(`RPC: ${cmd}`);
 
-		rpcCall = function(callback) {
+		let rpcCall = function(callback) {
 			var client = (cmd == "gettxoutsetinfo" ? global.rpcClientNoTimeout : global.rpcClient);
 
 			client.command(cmd, function(err, result, resHeaders) {
@@ -402,7 +357,7 @@ function getRpcDataWithParams(request) {
 	return new Promise(function(resolve, reject) {
 		debugLog(`RPC: ${JSON.stringify(request)}`);
 
-		rpcCall = function(callback) {
+		let rpcCall = function(callback) {
 			global.rpcClient.command([request], function(err, result, resHeaders) {
 				try {
 					if (err != null) {
@@ -489,19 +444,13 @@ module.exports = {
 	getUtxo: getUtxo,
 	getMempoolTxDetails: getMempoolTxDetails,
 	getRawMempool: getRawMempool,
-	getUptimeSeconds: getUptimeSeconds,
 	getHelp: getHelp,
 	getRpcMethodHelp: getRpcMethodHelp,
 	getAddress: getAddress,
 	getPeerInfo: getPeerInfo,
-	getChainTxStats: getChainTxStats,
-	getSmartFeeEstimate: getSmartFeeEstimate,
 	getUtxoSetSummary: getUtxoSetSummary,
 	getNetworkHashrate: getNetworkHashrate,
-	getBlockStats: getBlockStats,
-	getBlockStatsByHeight: getBlockStatsByHeight,
 	getBlockHeaderByHash: getBlockHeaderByHash,
 	getBlockHeaderByHeight: getBlockHeaderByHeight,
 
-	minRpcVersions: minRpcVersions
 };

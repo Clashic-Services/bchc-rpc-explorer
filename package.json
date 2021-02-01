@@ -10,7 +10,8 @@
 	},
 	"keywords": [
 		"bitcoin",
-		"btc",
+		"clashic",
+		"bchc",
 		"blockchain"
 	],
 	"author": "Dan Janosik <dan@47.io>",
@@ -35,6 +36,7 @@
 		"electrum-client": "github:janoside/electrum-client",
 		"express": "^4.17.1",
 		"express-session": "^1.17.1",
+		"express-status-monitor": "^1.3.3",
 		"jstransformer-markdown-it": "^2.1.0",
 		"lru-cache": "^5.1.1",
 		"markdown-it": "^12.0.4",

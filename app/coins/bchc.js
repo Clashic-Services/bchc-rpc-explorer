@@ -5,17 +5,17 @@ const Decimal8 = Decimal.clone({ precision:8, rounding:8 });
 const currencyUnits = [
 	{
 		type:"native",
-		name:"BTC",
+		name:"BCHC",
 		multiplier:1,
 		default:true,
-		values:["", "btc", "BTC"],
+		values:["", "bchc", "BCHC"],
 		decimalPlaces:8
 	},
 	{
 		type:"native",
-		name:"mBTC",
+		name:"mBCHC",
 		multiplier:1000,
-		values:["mbtc"],
+		values:["mbchc"],
 		decimalPlaces:5
 	},
 	{
@@ -40,40 +40,27 @@ const currencyUnits = [
 		decimalPlaces:2,
 		symbol:"$"
 	},
-	{
-		type:"exchanged",
-		name:"EUR",
-		multiplier:"eur",
-		values:["eur"],
-		decimalPlaces:2,
-		symbol:"€"
-	},
 ];
 
 module.exports = {
-	name:"Bitcoin",
-	ticker:"BTC",
+	name:"Bitcoin Clashic",
+	ticker:"BCHC",
 	logoUrlsByNetwork:{
-		"main":"./img/logo/btc.svg",
-		"test":"./img/logo/tbtc.svg",
-		"regtest":"./img/logo/tbtc.svg",
-		"signet":"./img/logo/signet.svg"
+		"main":"./img/logo/bchc.svg",
+		"test":"./img/logo/tbchc.svg",
+		"regtest":"./img/logo/tbchc.svg",
+		"signet":"./img/logo/bchc.svg"
 	},
 	siteTitlesByNetwork: {
-		"main":"Bitcoin Explorer",
-		"test":"Testnet Explorer",
-		"regtest":"Regtest Explorer",
-		"signet":"Signet Explorer",
+		"main":"Bitcoin Clashic Explorer",
+		"test":"Clashic Testnet Explorer",
+		"regtest":"Clashic Regtest Explorer",
+		"signet":"Clashic Signet Explorer",
 	},
-	siteDescriptionHtml:"<b>BCHC Explorer</b> is <a href='https://github.com/Clashic-Services/bchc-rpc-explorer). If you run your own [Bitcoin Full Node](https://bitcoin.org/en/full-node), **BTC Explorer** can easily run alongside it, communicating via RPC calls. See the project [ReadMe](https://github.com/Clashic-Services/bchc-rpc-explorer) for a list of features and instructions for running.",
+	siteDescriptionHtml:"<b>BCHC Explorer</b> is <a href='https://github.com/Clashic-Services/bchc-rpc-explorer). If you run your own [Bitcoin Full Node](https://bitcoin.org/en/full-node), **BCHC Explorer** can easily run alongside it, communicating via RPC calls. See the project [ReadMe](https://github.com/Clashic-Services/bchc-rpc-explorer) for a list of features and instructions for running.",
 	nodeTitle:"Bitcoin Clashic Full Node",
 	nodeUrl:"https://bitcoin.org/en/full-node",
-	demoSiteUrl: "https://explorer.btc21.org",
-	miningPoolsConfigUrls:[
-		"https://raw.githubusercontent.com/btc21/Bitcoin-Known-Miners/master/miners.json",
-		"https://raw.githubusercontent.com/btccom/Blockchain-Known-Pools/master/pools.json",
-		"https://raw.githubusercontent.com/blockchain/Blockchain-Known-Pools/master/pools.json"
-	],
+	
 	maxBlockWeight: 4000000,
 	maxBlockSize: 1000000,
 	difficultyAdjustmentBlockCount: 2016,
@@ -83,10 +70,10 @@ module.exports = {
 		"regtest": new Decimal(21000000),
 		"signet": new Decimal(21000000)
 	},
-	targetBlockTimeSeconds: 600,
-	targetBlockTimeMinutes: 10,
+	targetBlockTimeSeconds: 60,
+	targetBlockTimeMinutes: 1,
 	currencyUnits:currencyUnits,
-	currencyUnitsByName:{"BTC":currencyUnits[0], "mBTC":currencyUnits[1], "bits":currencyUnits[2], "sat":currencyUnits[3]},
+	currencyUnitsByName:{"BCHC":currencyUnits[0], "mBCHC":currencyUnits[1], "bits":currencyUnits[2], "sat":currencyUnits[3]},
 	baseCurrencyUnit:currencyUnits[3],
 	defaultCurrencyUnit:currencyUnits[0],
 	feeSatoshiPerByteBucketMaxima: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 50, 75, 100, 150],
@@ -706,22 +693,11 @@ module.exports = {
 		},
 	],
 	exchangeRateData:{
-		jsonUrl:"https://api.coindesk.com/v1/bpi/currentprice.json",
+		jsonUrl:"https://www.southxchange.com/api/price/BCHC/USD",
+		exchangedCurrencyName:"usd",
 		responseBodySelectorFunction:function(responseBody) {
-			//console.log("Exchange Rate Response: " + JSON.stringify(responseBody));
-
-			var exchangedCurrencies = ["USD", "GBP", "EUR"];
-
-			if (responseBody.bpi) {
-				var exchangeRates = {};
-
-				for (var i = 0; i < exchangedCurrencies.length; i++) {
-					if (responseBody.bpi[exchangedCurrencies[i]]) {
-						exchangeRates[exchangedCurrencies[i].toLowerCase()] = responseBody.bpi[exchangedCurrencies[i]].rate_float;
-					}
-				}
-
-				return exchangeRates;
+			if (responseBody[0] && responseBody[0].price_usd) {
+				return {"usd":responseBody[0].price_usd};
 			}
 			
 			return null;
