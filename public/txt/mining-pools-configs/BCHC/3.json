@@ -1,0 +1,14 @@
+{
+    "coinbase_tags" : {
+        "Zergpool": {
+            "name": "zergpool.com",
+            "link": "https://zergpool.com/"
+        }
+    },
+    "payout_addresses" : {
+        "1JSGnebYxNJZ5zH3SUTc8BJiJACsSQ2jTr" : {
+            "name" : "zergpool.com",
+            "link" : "https://zergpool.com/"
+        }
+    }
+}
