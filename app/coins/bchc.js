@@ -60,7 +60,8 @@ module.exports = {
 	siteDescriptionHtml:"<b>BCHC Explorer</b> is <a href='https://github.com/Clashic-Services/bchc-rpc-explorer). If you run your own [Bitcoin Full Node](https://bitcoin.org/en/full-node), **BCHC Explorer** can easily run alongside it, communicating via RPC calls. See the project [ReadMe](https://github.com/Clashic-Services/bchc-rpc-explorer) for a list of features and instructions for running.",
 	nodeTitle:"Bitcoin Clashic Full Node",
 	nodeUrl:"https://bitcoin.org/en/full-node",
-	
+	demoSiteUrl: "",
+	miningPoolsConfigUrls:[],
 	maxBlockWeight: 4000000,
 	maxBlockSize: 1000000,
 	difficultyAdjustmentBlockCount: 2016,
