@@ -1,14 +1,22 @@
 {
     "coinbase_tags" : {
-        "Zergpool": {
-            "name": "zergpool.com",
+        "zergpool.com": {
+            "name": "Zergpool",
             "link": "https://zergpool.com/"
+        },
+        "zpool.ca": {
+            "name": "ZPOOL",
+            "link": "https://zpool.ca/"
         }
     },
     "payout_addresses" : {
         "1JSGnebYxNJZ5zH3SUTc8BJiJACsSQ2jTr" : {
-            "name" : "zergpool.com",
+            "name" : "Zergpool",
             "link" : "https://zergpool.com/"
+        },
+        "1HMwtbdzZNfku2iA89oNA1yqPh7VAd9QVT" : {
+            "name" : "ZPOOL",
+            "link" : "https://zpool.ca/"
         }
     }
 }
